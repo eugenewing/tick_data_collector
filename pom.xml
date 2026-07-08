@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ru.eugenewing</groupId>
-    <name>tick_data_collector</name>
+    <name>TickDataCollector</name>
     <artifactId>tick_data_collector</artifactId>
     <packaging>war</packaging>
     <version>1.0-SNAPSHOT</version>

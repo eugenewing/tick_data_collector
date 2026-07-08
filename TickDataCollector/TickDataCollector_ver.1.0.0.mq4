@@ -1,12 +1,15 @@
-﻿//+------------------------------------------------------------------+
-//|                                                TickDataCollector |
-//|                                    Copyright 2026, Andy Dufresne |
-//+------------------------------------------------------------------+
+﻿//+-----------------------------------------------------------------------------------------------------------+
+//|                                                                                         TickDataCollector |
+//|                                                                             Copyright 2026, Andy Dufresne |
+//+-----------------------------------------------------------------------------------------------------------+
 #property strict
 #property copyright "Copyright 2026, Andy Dufresne"
-#property version   "1.00"
+#property version   "1.0.0"
 
 struct Tick {
+   double            ask;//Цена ask
+   double            bid;//Цена bid
+   string            date;//Время и дата
    int               volume;//Объем тика
    double            body;//Тело тика
    double            spread;//Спред тика
@@ -16,12 +19,12 @@ struct Tick {
 Tick TickData[];
 datetime LastM5BarTime = 0;
 string DataFilePrefix = "TickDataCollector_Data_";
-int MaxRowsPerFile = 50000;
+int MaxRowsPerFile = 150000;
 int CurrentDataFileIndex = 0;
 int CurrentDataFileRowCount = 0;
-//+------------------------------------------------------------------+
-//| Основные функции                                                 |
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
+//| Основные функции                                                                                          |
+//+-----------------------------------------------------------------------------------------------------------+
 int OnInit() {
    ArrayResize(TickData, 0);
    LastM5BarTime = iTime(Symbol(), PERIOD_M5, 0);
@@ -31,8 +34,7 @@ int OnInit() {
    if (CurrentDataFileIndex == 0) {
       CurrentDataFileIndex = 1;
       CurrentDataFileRowCount = 0;
-   }
-   else {
+   } else {
       // Возвращает имя CSV-файла по его порядковому номеру.
       string currentDataFileName = GetDataFileName(CurrentDataFileIndex);
       // Подсчитывает количество строк с данными в указанном CSV-файле.
@@ -41,11 +43,9 @@ int OnInit() {
 
    return(INIT_SUCCEEDED);
 }
-//+------------------------------------------------------------------+
-void OnDeinit(const int reason) {
-   reason;
-}
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
+void OnDeinit(const int reason) {}
+//+-----------------------------------------------------------------------------------------------------------+
 void OnTick() {
    datetime currentM5BarTime = iTime(Symbol(), PERIOD_M5, 0);
 
@@ -61,6 +61,12 @@ void OnTick() {
    }
 
    Tick tick;
+   // Получает цену ask.
+   tick.ask = NormalizeDouble(Ask, Digits);
+   // Получает цену bid.
+   tick.bid = NormalizeDouble(Bid, Digits);
+   // Получает дату и время тика.
+   tick.date = GetTickTimeDate();
    // Получает объем, прошедший в текущем тике, как разницу между новым и предыдущим объемом.
    tick.volume = GetTickVolume();
    // Получает тело текущего тика как изменение Bid относительно предыдущего тика.
@@ -74,9 +80,24 @@ void OnTick() {
    ArrayResize(TickData, tickDataSize + 1);
    TickData[tickDataSize] = tick;
 }
-//+------------------------------------------------------------------+
-//| Пользовательские функции                                         |
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
+//| Пользовательские функции                                                                                  |
+//+-----------------------------------------------------------------------------------------------------------+
+string GetTickTimeDate() {
+   // Получает дату и время тика.
+   // Получаем текущее серверное время тика (с точностью до секунд)
+   datetime server_time = TimeCurrent();
+   
+   // Получаем системные миллисекунды
+   uint sys_msc = GetTickCount();
+   
+   // Вычисляем остаток миллисекунд для текущей секунды
+   int milliseconds = (int)(sys_msc % 1000);
+   
+   // Выводим строковое представление даты, времени и миллисекунд
+   return(StringFormat("=\"%s.%03d\"", TimeToString(server_time, TIME_DATE|TIME_SECONDS), milliseconds));
+}
+//+-----------------------------------------------------------------------------------------------------------+
 // Получает объем, прошедший в текущем тике, как разницу между новым и предыдущим объемом.
 int GetTickVolume() {
    static int previousVolume = 0;
@@ -92,7 +113,7 @@ int GetTickVolume() {
 
    return(tickVolume);
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
 // Получает тело текущего тика как изменение Bid относительно предыдущего тика.
 double GetTickBody() {
    static double previousBid = 0.0;
@@ -108,7 +129,7 @@ double GetTickBody() {
 
    return(body);
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
 // Получает спред текущего тика как разницу между Ask и Bid.
 double GetTickSpread() {
    return(NormalizeDouble(Ask - Bid, Digits));
@@ -129,7 +150,7 @@ int GetTickSpeed() {
 
    return(speed);
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
 // Сохраняет накопленные тики в последний CSV-файл и при достижении лимита строк создает следующий.
 void SaveTickDataToCsv() {
    int tickCount = ArraySize(TickData);
@@ -158,6 +179,9 @@ void SaveTickDataToCsv() {
 
       while (tickIndex < tickCount && CurrentDataFileRowCount < MaxRowsPerFile) {
          FileWrite(fileHandle,
+                   DoubleToString(TickData[tickIndex].ask, Digits),
+                   DoubleToString(TickData[tickIndex].bid, Digits),
+                   TickData[tickIndex].date,
                    TickData[tickIndex].volume,
                    DoubleToString(TickData[tickIndex].body, Digits),
                    DoubleToString(TickData[tickIndex].spread, Digits),
@@ -170,12 +194,12 @@ void SaveTickDataToCsv() {
       FileClose(fileHandle);
    }
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
 // Возвращает имя CSV-файла по его порядковому номеру.
 string GetDataFileName(int fileIndex) {
    return(DataFilePrefix + IntegerToString(fileIndex) + ".csv");
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
 // Находит индекс последнего файла TickDataCollector_Data_N.csv, доступного для продолжения записи.
 int GetLastDataFileIndex() {
    string fileName;
@@ -200,7 +224,7 @@ int GetLastDataFileIndex() {
 
    return(lastFileIndex);
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
 // Извлекает порядковый номер файла из имени TickDataCollector_Data_N.csv.
 int ExtractFileIndex(string fileName) {
    string prefix = DataFilePrefix;
@@ -217,7 +241,7 @@ int ExtractFileIndex(string fileName) {
 
    return((int)StringToInteger(indexPart));
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
 // Подсчитывает количество строк с данными в указанном CSV-файле.
 int CountFileRows(string fileName) {
    if (!FileIsExist(fileName)) {
@@ -244,4 +268,4 @@ int CountFileRows(string fileName) {
 
    return(rowCount);
 }
-//+------------------------------------------------------------------+
+//+-----------------------------------------------------------------------------------------------------------+
