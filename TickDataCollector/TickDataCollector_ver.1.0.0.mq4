@@ -1,22 +1,26 @@
 ﻿//+-----------------------------------------------------------------------------------------------------------+
 //|                                                                                         TickDataCollector |
-//|                                                                             Copyright 2026, Andy Dufresne |
 //+-----------------------------------------------------------------------------------------------------------+
-#property strict
 #property copyright "Copyright 2026, Andy Dufresne"
-#property version   "1.0.0"
-
+#property version   "1.00"
+#property strict
+//+-----------------------------------------------------------------------------------------------------------+
+//| Глобальный уровень                                                                                        |
+//+-----------------------------------------------------------------------------------------------------------+
+//+---Структуры-----------------------------------------------------------------------------------------------+
 struct Tick {
    double            ask;//Цена ask
    double            bid;//Цена bid
-   string            date;//Время и дата
+   string            date;//Дата терминала
+   string            time;//Время терминала
    int               volume;//Объем тика
    double            body;//Тело тика
    double            spread;//Спред тика
    int               speed;//Скорость тика
 };
-
+//+---Массивы-------------------------------------------------------------------------------------------------+
 Tick TickData[];
+//+---Переменные----------------------------------------------------------------------------------------------+
 datetime LastM5BarTime = 0;
 string DataFilePrefix = "TickDataCollector_Data_";
 int MaxRowsPerFile = 150000;
@@ -65,8 +69,10 @@ void OnTick() {
    tick.ask = NormalizeDouble(Ask, Digits);
    // Получает цену bid.
    tick.bid = NormalizeDouble(Bid, Digits);
-   // Получает дату и время тика.
-   tick.date = GetTickTimeDate();
+   // Получает дату тика.
+   tick.date = GetTickDate();
+   // Получает время тика.
+   tick.time = GetTickTime();
    // Получает объем, прошедший в текущем тике, как разницу между новым и предыдущим объемом.
    tick.volume = GetTickVolume();
    // Получает тело текущего тика как изменение Bid относительно предыдущего тика.
@@ -83,7 +89,40 @@ void OnTick() {
 //+-----------------------------------------------------------------------------------------------------------+
 //| Пользовательские функции                                                                                  |
 //+-----------------------------------------------------------------------------------------------------------+
-string GetTickTimeDate() {
+string GetTickDate() {
+   // Получает дату тика.
+   MqlTick last_tick;
+   datetime server_time;
+   
+   // Пытаемся взять время последнего тика по текущему символу
+   if(SymbolInfoTick(_Symbol, last_tick)) {
+      server_time = last_tick.time;
+   } else {
+      server_time = TimeCurrent(); // Запасной вариант (время последней известной котировки)
+   }
+   
+   return(StringFormat("=\"%s\"", TimeToString(server_time, TIME_DATE)));
+}
+//+-----------------------------------------------------------------------------------------------------------+
+string GetTickTime() {
+   // Получает время тика.
+   MqlTick last_tick;
+   datetime server_time;
+   int milliseconds = 0;
+   
+   // Получаем данные последнего тика с сервера
+   if(SymbolInfoTick(_Symbol, last_tick)) {
+      server_time = last_tick.time;
+      milliseconds = (int)(last_tick.time_msc % 1000);
+   } else {
+      server_time = TimeCurrent();
+      milliseconds = 0;
+   }
+   
+   return(StringFormat("=\"%s.%03d\"", TimeToString(server_time, TIME_SECONDS), milliseconds));
+}
+//+-----------------------------------------------------------------------------------------------------------+
+/*string GetTickTimeDate() {
    // Получает дату и время тика.
    // Получаем текущее серверное время тика (с точностью до секунд)
    datetime server_time = TimeCurrent();
@@ -96,7 +135,7 @@ string GetTickTimeDate() {
    
    // Выводим строковое представление даты, времени и миллисекунд
    return(StringFormat("=\"%s.%03d\"", TimeToString(server_time, TIME_DATE|TIME_SECONDS), milliseconds));
-}
+}*/
 //+-----------------------------------------------------------------------------------------------------------+
 // Получает объем, прошедший в текущем тике, как разницу между новым и предыдущим объемом.
 int GetTickVolume() {
@@ -182,6 +221,7 @@ void SaveTickDataToCsv() {
                    DoubleToString(TickData[tickIndex].ask, Digits),
                    DoubleToString(TickData[tickIndex].bid, Digits),
                    TickData[tickIndex].date,
+                   TickData[tickIndex].time,
                    TickData[tickIndex].volume,
                    DoubleToString(TickData[tickIndex].body, Digits),
                    DoubleToString(TickData[tickIndex].spread, Digits),
